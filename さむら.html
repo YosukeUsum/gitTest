@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style>
+
+
+        div.parent{
+            width:100%;
+            height:2000px;
+            background:#F6F6F6;
+            position:relative;
+        }
+        p.box01{
+            width:100px;
+            height:100px;
+            background:#b7d8fb;
+            position:absolute;
+            top:0;
+        }
+        p.box02{
+            width:100%;
+            height:100px;
+            background:#fbb7b7;
+            position:fixed;
+            top:100px;
+        } 
+        .parent-harachigai {
+            position: relative;
+            top:500px;
+            left:300px;
+            background: purple;
+        }
+        .box-ibokyodai{
+
+            
+           
+            background: orange;
+        }
+        .box-ibokyodai2{
+            width:300px;
+            
+            background:plum;
+            position:fixed;
+            top:200px;
+            z-index:4;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="parent">
+        <p class="box01">ｃｓｓ指定状態<br>
+            position:absolute;
+            top:0;
+            <br>
+            これはparentが左上から始まっているからこれのabsoluteも
+            左上始まってます。
+        </p>
+        <p class="box02">box02
+            ｃｓｓ指定状態<br>
+            position:fixed;
+            top:100px;
+        </p>
+        <div class="parent-harachigai">box02
+            ｃｓｓ指定状態<br>
+            position: relative;<br>
+            top:500px;<br>
+            left:300px;
+            <div class="box-ibokyodai">
+                ｃｓｓ指定状態<br>
+                top:500px;<br>
+                これはparentがtop:500px;<br>
+                left:300px;から始まっているからこれのabsoluteも
+                引き継ぎます。
+            </div>
+            <p class="box-ibokyodai2">
+                ｃｓｓ指定状態<br>
+                position:fixed;
+                top:200px;<br>  
+                fixedは指定が無ければ親のpositionの設定を引き継ぎます。
+                <br>
+                leftとかTopとか。。
+                <br>
+                なのでここでは指定されていない親のleftを引き継ぎます。
+                <br>
+                ※これさっきやってて気づきました笑
+            </p>
+        </div>
+      </div>
+      <script>
+          window.onload = function(){
+              alert("まとめ：fixedは親の設定状態を引き継ぎで画面ベースで表示されて、absoluteは親の設定状態を引き継ぎで親の要素ベースで表示します。")
+          }
+
+/*
+          nic　= seiko 原子時計
+            google
+          rfc ntp
+          EC
+          医療　証明書　timestamp
+          ntp で
+          　
+          ｌ３　ｌ４　ルーティング
+          IP　servicerにとぶ
+
+          ziturei 
+          管理ねっちわーくからサーバー
+
+          IP
+          しぼって
+          管理　運用保守
+
+          DHCP
+          IPアドレスが変わる
+
+          ｌ２スイッチ
+            ひとつ
+          ｌ３
+            複数
+
+
+
+*/
+
+      </script>
+</body>    
+</html>
