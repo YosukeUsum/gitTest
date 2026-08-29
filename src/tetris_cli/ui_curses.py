@@ -1,6 +1,9 @@
 """curses を用いたCLI描画・キー入力 (SPEC.md ui_curses.py)。
 
 ロジックは Game クラスに委譲し、本モジュールは描画と入力受付のみを行う。
+注意: 画面に実際に描画する文字列(stdscr.addstrに渡す文字列)は、
+windows-curses環境での文字化け・文字の重なり表示を避けるため、
+半角英数字(ASCII)のみを使用する (SPEC.md NFR-5)。
 """
 from __future__ import annotations
 
@@ -12,9 +15,12 @@ from .game import Game
 CELL = "[]"  # 1マスを表す2文字(等幅で正方形に近い見た目にする)
 EMPTY = "  "
 
+# windows-curses は日本語などの全角文字を含む文字列を addstr で描画すると
+# 文字がずれて重なって表示される既知の問題があるため (SPEC.md NFR-5)、
+# curses で実際に描画する文字列はすべて半角英数字のみで構成する。
 KEY_BINDINGS_HELP = (
-    "矢印キー: 移動  ↑/X: 回転(右)  Z: 回転(左)  "
-    "Space: ハードドロップ  P: 一時停止  Q: 終了"
+    "Arrows:Move  Up/X:RotateR  Z:RotateL  "
+    "Space:HardDrop  P:Pause  Q:Quit"
 )
 
 
@@ -45,7 +51,7 @@ def _draw_sidebar(stdscr, game: Game, origin_y: int, origin_x: int) -> None:
         stdscr.addstr(origin_y + 8, origin_x, "-- PAUSED --")
     if game.game_over:
         stdscr.addstr(origin_y + 8, origin_x, "GAME OVER")
-        stdscr.addstr(origin_y + 9, origin_x, "Qで終了")
+        stdscr.addstr(origin_y + 9, origin_x, "Press Q to quit")
     stdscr.addstr(origin_y + 11, origin_x, KEY_BINDINGS_HELP[: max(1, curses.COLS - origin_x - 1)])
 
 

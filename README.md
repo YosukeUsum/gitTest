@@ -2,7 +2,7 @@
 
 Python標準ライブラリ(curses)で動作する、ターミナル上で遊べるテトリスです。
 本プロジェクトは仕様駆動開発(Spec-Driven Development)で実装されており、
-詳細な仕様は [SPEC.md](./SPEC.md) を参照してください。
+詳細な仕様は [SPEC.md](./SPEC.md) を、開発履歴は [CHANGELOG.md](./CHANGELOG.md) を参照してください。
 
 ## 必要環境
 
