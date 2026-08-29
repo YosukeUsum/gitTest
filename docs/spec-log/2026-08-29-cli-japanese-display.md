@@ -78,7 +78,8 @@
 - 変更の要約: CLI 画面の表示文字列を日本語化。windows-curses の全角文字重なりは
   `unicodedata.east_asian_width` による桁計算で回避。実装は `ui_curses.py` の
   `_draw_text()` / `_char_width()` 追加と `locale.setlocale` 呼び出し。
-- コミット: （コミット時に追記）
+- コミット: 414e183 「feat: CLI画面表示を日本語化(NFR-5を改訂)」
+  （本ログの「コミット」欄追記のみ後続コミットで反映）
 
 ## 未解決・次回持ち越し
 
