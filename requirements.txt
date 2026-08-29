@@ -1,0 +1,5 @@
+# Windows環境ではcursesが標準で無いため以下が必要
+windows-curses; platform_system == "Windows"
+
+# 開発/テスト用
+pytest>=7.0
