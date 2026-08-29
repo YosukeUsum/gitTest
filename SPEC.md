@@ -61,7 +61,7 @@ CLIアプリケーション。
 - NFR-3: ロジック層(`board.py`, `tetromino.py`, `game.py`)は `curses` に非依存とし、
   `pytest` により自動テスト可能な設計とする。
 - NFR-4: Python 3.9以上で動作すること。
-- NFR-5: `ui_curses.py` が `stdscr.addstr` で実際に画面へ描画する文字列は、半角英数字(ASCII)のみで構成すること。windows-curses環境で全角文字(日本語など)を含む文字列を描画すると、文字がずれて重なって表示される不具合が確認されたため(2026-08-29 バグ修正、CHANGELOG.md参照)。ドキュメント(SPEC.md/README.md)やソースコード中のコメントは従来通り日本語を使用してよい。
+- NFR-5: `ui_curses.py` が画面へ描画する文字列(操作ヘルプ、スコア等のラベル、状態メッセージ)は日本語で表示すること。ただし windows-curses 環境では全角文字を含む文字列を `stdscr.addstr` に渡すと表示幅の計算が不正確になり、文字がずれて重なって表示される不具合がある(2026-08-29 バグ修正、CHANGELOG.md参照)。このため `ui_curses.py` は各文字の表示幅を `unicodedata.east_asian_width` で判定(全角=2桁、半角=1桁)し、確定した桁位置へ1文字ずつ描画すること。盤面の罫線(`|` `+` `-`)・セル表現(`[]`)などレイアウトの基準となる部分は従来どおり ASCII で構成する。(当初は不具合回避のため描画文字列を ASCII 限定としたが、日本語表示の要望を受け、表示幅を明示計算する方針へ改訂。)
 - NFR-6: `pytest` を実行するたびに、成功・失敗にかかわらず実行結果を `logs/` ディレクトリへ1ファイルとして記録すること。ログファイル名は実行日時を含む一意な名前(`test_run_<日時>.log`)とし、既存ログを上書きしない(実行1回につき1ファイル)。ログには各テストの成否(PASS/FAIL/ERROR/SKIP)、失敗時の詳細、および合計件数・終了ステータスのサマリを含める。
 - NFR-7: 本 `SPEC.md` の機能要件(FR)・非機能要件(NFR)・受け入れ基準(AC)・方針を追加/変更/削除する際は、変更に先立って設計判断の壁打ち(論点・選択肢・トレードオフ・根拠・決定・保留事項)を行い、その**要旨**を `docs/spec-log/` へMarkdownでGit管理下に記録すること。1テーマ1ファイルとし、ファイル名は起票日を含む `YYYY-MM-DD-<topic-slug>.md` とする(議論が後日に及ぶ場合は同一ファイルへ追記し、新規作成しない)。記録対象は `SPEC.md` の要件・方針に関わる壁打ちのみで、通常の質問応答・ツール操作補助・コードのみの作業・チャットの逐語全文は記録しない。誤字修正・体裁整形のみの変更は対象外とする。全ログは `docs/spec-log/README.md` に一覧化する。運用手順の詳細は `CLAUDE.md`、雛形は `docs/spec-log/TEMPLATE.md` を参照。
 
@@ -159,3 +159,4 @@ UIは `ui_curses.py` に閉じ込め、`game.py` の公開メソッドを呼び�
 | 2026-08-29 | NFR-5を追加。windows-curses環境でCLI操作ヘルプ等の全角文字がずれて重なって表示される不具合が発見されたため、curses描画文字列をASCII限定とする方針を明文化し、`ui_curses.py` を修正(詳細は `CHANGELOG.md` を参照)。 |
 | 2026-08-29 | NFR-6を追加。pytest実行のたびに `logs/` へ1ファイルの実行ログを残す要件を明文化し、`conftest.py` を追加して実装(詳細は `CHANGELOG.md` を参照)。 |
 | 2026-08-29 | NFR-7を追加。SPEC.md変更時に設計判断の壁打ち要旨を `docs/spec-log/` へ残す運用を明文化。`CLAUDE.md`、`docs/spec-log/`(README/TEMPLATE)を新設。本項の壁打ちログは `docs/spec-log/2026-08-29-spec-brainstorm-logging.md`。 |
+| 2026-08-29 | NFR-5を改訂。CLI画面の表示文字列を ASCII 限定から日本語表示へ変更。windows-curses の全角文字重なり不具合は、表示幅を `unicodedata.east_asian_width` で明示計算して1文字ずつ描画する方式で回避する。`ui_curses.py` に `_draw_text()` を追加して実装(詳細は `CHANGELOG.md`、壁打ちログは `docs/spec-log/2026-08-29-cli-japanese-display.md`)。 |

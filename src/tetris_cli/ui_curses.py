@@ -1,27 +1,55 @@
 """curses を用いたCLI描画・キー入力 (SPEC.md ui_curses.py)。
 
 ロジックは Game クラスに委譲し、本モジュールは描画と入力受付のみを行う。
-注意: 画面に実際に描画する文字列(stdscr.addstrに渡す文字列)は、
-windows-curses環境での文字化け・文字の重なり表示を避けるため、
-半角英数字(ASCII)のみを使用する (SPEC.md NFR-5)。
+
+注意 (SPEC.md NFR-5): 画面へ描画する文字列には日本語を使用してよい。ただし
+windows-curses は全角文字を含む文字列を addstr に渡すとカーソルを1桁しか進めず、
+全角グリフの右半分に次の文字が重なって表示される既知の不具合がある。これを避けるため、
+日本語を含むテキストは _draw_text() 経由で描画し、各文字の表示幅
+(unicodedata.east_asian_width: 全角=2桁 / 半角=1桁) を明示計算して、確定した桁位置へ
+1文字ずつ描画する。盤面の罫線・セル表現などレイアウトの基準となる部分は ASCII のままとする。
 """
 from __future__ import annotations
 
 import curses
+import locale
 import time
+import unicodedata
 
 from .game import Game
 
 CELL = "[]"  # 1マスを表す2文字(等幅で正方形に近い見た目にする)
 EMPTY = "  "
 
-# windows-curses は日本語などの全角文字を含む文字列を addstr で描画すると
-# 文字がずれて重なって表示される既知の問題があるため (SPEC.md NFR-5)、
-# curses で実際に描画する文字列はすべて半角英数字のみで構成する。
+# 画面に表示する操作ヘルプ。全角文字を含むため _draw_text() 経由で描画する (NFR-5)。
 KEY_BINDINGS_HELP = (
-    "Arrows:Move  Up/X:RotateR  Z:RotateL  "
-    "Space:HardDrop  P:Pause  Q:Quit"
+    "矢印キー:移動  上/X:右回転  Z:左回転  "
+    "スペース:ハードドロップ  P:一時停止  Q:終了"
 )
+
+
+def _char_width(ch: str) -> int:
+    """端末上での表示桁数を返す。全角(W)・全角互換(F)は2、それ以外は1。"""
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+def _draw_text(stdscr, y: int, x: int, text: str, max_x: int | None = None) -> None:
+    """表示幅を明示計算し、1文字ずつ確定した桁位置へ描画する (SPEC.md NFR-5)。
+
+    windows-curses が全角文字でカーソルを1桁しか進めず文字が重なる不具合への対策。
+    max_x を与えると、その桁を超える文字は描画しない(画面幅での打ち切り)。
+    """
+    cur = x
+    for ch in text:
+        w = _char_width(ch)
+        if max_x is not None and cur + w > max_x:
+            break
+        try:
+            stdscr.addstr(y, cur, ch)
+        except curses.error:
+            # 画面端など描画不能なセルは無視して継続する。
+            pass
+        cur += w
 
 
 def _draw_board(stdscr, game: Game, origin_y: int, origin_x: int) -> None:
@@ -42,17 +70,17 @@ def _draw_board(stdscr, game: Game, origin_y: int, origin_x: int) -> None:
 
 
 def _draw_sidebar(stdscr, game: Game, origin_y: int, origin_x: int) -> None:
-    stdscr.addstr(origin_y, origin_x, "TETRIS")
-    stdscr.addstr(origin_y + 2, origin_x, f"Score: {game.score}")
-    stdscr.addstr(origin_y + 3, origin_x, f"Level: {game.level}")
-    stdscr.addstr(origin_y + 4, origin_x, f"Lines: {game.lines_cleared}")
-    stdscr.addstr(origin_y + 6, origin_x, f"Next:  {game.next_kind}")
+    _draw_text(stdscr, origin_y, origin_x, "テトリス")
+    _draw_text(stdscr, origin_y + 2, origin_x, f"スコア: {game.score}")
+    _draw_text(stdscr, origin_y + 3, origin_x, f"レベル: {game.level}")
+    _draw_text(stdscr, origin_y + 4, origin_x, f"ライン: {game.lines_cleared}")
+    _draw_text(stdscr, origin_y + 6, origin_x, f"ネクスト: {game.next_kind}")
     if game.paused:
-        stdscr.addstr(origin_y + 8, origin_x, "-- PAUSED --")
+        _draw_text(stdscr, origin_y + 8, origin_x, "-- 一時停止中 --")
     if game.game_over:
-        stdscr.addstr(origin_y + 8, origin_x, "GAME OVER")
-        stdscr.addstr(origin_y + 9, origin_x, "Press Q to quit")
-    stdscr.addstr(origin_y + 11, origin_x, KEY_BINDINGS_HELP[: max(1, curses.COLS - origin_x - 1)])
+        _draw_text(stdscr, origin_y + 8, origin_x, "ゲームオーバー")
+        _draw_text(stdscr, origin_y + 9, origin_x, "Q キーで終了")
+    _draw_text(stdscr, origin_y + 11, origin_x, KEY_BINDINGS_HELP, max_x=curses.COLS - 1)
 
 
 def _handle_key(game: Game, key: int) -> bool:
@@ -106,4 +134,6 @@ def run(stdscr) -> None:
 
 
 def main() -> None:
+    # 全角文字を正しく扱うためロケールを環境に合わせる (SPEC.md NFR-5)。
+    locale.setlocale(locale.LC_ALL, "")
     curses.wrapper(run)
