@@ -37,3 +37,19 @@
      `"Press Q to quit"`)に変更。
   3. ドキュメント(SPEC.md・README.md)やソースコードコメントの日本語表記はそのまま維持
      (画面に直接描画される文字列のみが対象)。
+
+### 機能追加: pytest実行ログの記録
+
+- 要望: テスト実行時に、成功・失敗にかかわらず結果のログを残したい。ログの単位は
+  テスト実行ごとに1ファイルとする。
+- 対応:
+  1. `SPEC.md` に NFR-6(pytest実行のたびに `logs/` へ1ファイルの実行ログを残す)を
+     追記(仕様を先に更新)。
+  2. `conftest.py` を新規作成。pytestの `pytest_configure` / `pytest_runtest_logreport` /
+     `pytest_sessionfinish` フックを利用し、実行開始時刻を含む一意なファイル名
+     (`logs/test_run_<日時>.log`)でログファイルを作成。各テストの結果
+     (PASS/FAIL/ERROR/SKIP)・失敗時の詳細・最終サマリ(合計/成功/失敗/スキップ件数、
+     終了ステータス)を記録する。
+  3. `logs/` ディレクトリを追加し、`.gitkeep` で構造のみコミット。生成される
+     `*.log` ファイル自体は `.gitignore` でコミット対象外とした。
+  4. README.mdにログ出力についての説明を追記。

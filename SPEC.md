@@ -62,6 +62,7 @@ CLIアプリケーション。
   `pytest` により自動テスト可能な設計とする。
 - NFR-4: Python 3.9以上で動作すること。
 - NFR-5: `ui_curses.py` が `stdscr.addstr` で実際に画面へ描画する文字列は、半角英数字(ASCII)のみで構成すること。windows-curses環境で全角文字(日本語など)を含む文字列を描画すると、文字がずれて重なって表示される不具合が確認されたため(2026-08-29 バグ修正、CHANGELOG.md参照)。ドキュメント(SPEC.md/README.md)やソースコード中のコメントは従来通り日本語を使用してよい。
+- NFR-6: `pytest` を実行するたびに、成功・失敗にかかわらず実行結果を `logs/` ディレクトリへ1ファイルとして記録すること。ログファイル名は実行日時を含む一意な名前(`test_run_<日時>.log`)とし、既存ログを上書きしない(実行1回につき1ファイル)。ログには各テストの成否(PASS/FAIL/ERROR/SKIP)、失敗時の詳細、および合計件数・終了ステータスのサマリを含める。
 
 ## 6. アーキテクチャ / モジュール設計
 
@@ -69,7 +70,10 @@ CLIアプリケーション。
 tetris-cli/
 ├── SPEC.md                 本仕様書
 ├── README.md
+├── CHANGELOG.md             開発履歴
 ├── requirements.txt
+├── conftest.py               pytest実行ログをlogs/へ出力する(NFR-6)
+├── logs/                       pytest実行ログの出力先(生成物、.log自体はコミット対象外)
 ├── src/tetris_cli/
 │   ├── __init__.py
 │   ├── tetromino.py        テトリミノ形状・回転定義(SRS簡易版)
@@ -146,3 +150,4 @@ UIは `ui_curses.py` に閉じ込め、`game.py` の公開メソッドを呼び�
 |---|---|
 | 2026-08-29 | 初版作成。FR-1〜13, NFR-1〜4, AC-1〜9 を定義。 |
 | 2026-08-29 | NFR-5を追加。windows-curses環境でCLI操作ヘルプ等の全角文字がずれて重なって表示される不具合が発見されたため、curses描画文字列をASCII限定とする方針を明文化し、`ui_curses.py` を修正(詳細は `CHANGELOG.md` を参照)。 |
+| 2026-08-29 | NFR-6を追加。pytest実行のたびに `logs/` へ1ファイルの実行ログを残す要件を明文化し、`conftest.py` を追加して実装(詳細は `CHANGELOG.md` を参照)。 |

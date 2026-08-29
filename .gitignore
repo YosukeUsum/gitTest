@@ -5,3 +5,7 @@ __pycache__/
 venv/
 *.egg-info/
 .vscode/*.log
+
+# pytest実行ログ(NFR-6: 1実行=1ファイル、生成物のためコミット対象外)
+logs/*.log
+!logs/.gitkeep
