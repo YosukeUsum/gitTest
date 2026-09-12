@@ -44,5 +44,4 @@
 
 ## curses 描画の制約(NFR-5)
 
-`src/tetris_cli/ui_curses.py` が `stdscr.addstr` で画面へ描画する文字列は ASCII のみ。
-全角文字を描画すると windows-curses 環境で表示が崩れる。ドキュメントやコメントの日本語は可。
+`src/tetris_cli/ui_curses.py` の画面表示文字列は日本語を使ってよい。ただし windows-curses は全角文字を含む文字列を `stdscr.addstr` にそのまま渡すとカーソルが1桁しか進まず、全角グリフの右半分に次の文字が重なって表示される不具合があるため、日本語を含むテキストは必ず `_draw_text()`(`unicodedata.east_asian_width` で表示幅を判定し1文字ずつ確定桁へ描画)経由で描画すること。`stdscr.addstr` を直接使ってよいのは、盤面の罫線・セル表現などASCIIのみで構成される部分に限る。

@@ -17,9 +17,14 @@ import time
 import unicodedata
 
 from .game import Game
+from .game_loop import FixedTimestepLoop, FrameLimiter
 
 CELL = "[]"  # 1マスを表す2文字(等幅で正方形に近い見た目にする)
 EMPTY = "  "
+
+# ゲームループの目標フレームレート (SPEC.md NFR-8)。
+# 描画・入力処理の頻度はこの値で制御し、ゲーム進行(重力tick)の頻度とは分離する。
+TARGET_FPS = 50.0
 
 # 画面に表示する操作ヘルプ。全角文字を含むため _draw_text() 経由で描画する (NFR-5)。
 KEY_BINDINGS_HELP = (
@@ -107,30 +112,47 @@ def _handle_key(game: Game, key: int) -> bool:
 
 
 def run(stdscr) -> None:
+    """メインのゲームループ (SPEC.md NFR-8)。
+
+    毎フレーム「入力処理 -> 固定タイムステップでの更新 -> 描画 -> フレームレート制御」
+    の順に明確に分離して実行する。ゲームの進行(重力によるtick)は
+    FixedTimestepLoop により実行環境の処理速度に依存せず一定間隔で保証され、
+    描画・入力受付の頻度は FrameLimiter によりTARGET_FPSに制御される。
+    """
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.keypad(True)
 
     game = Game()
-    last_tick = time.monotonic()
+    timestep = FixedTimestepLoop(update_interval=game.gravity_interval())
+    limiter = FrameLimiter(target_fps=TARGET_FPS)
+    last_frame = time.monotonic()
 
     while True:
-        stdscr.erase()
-        _draw_board(stdscr, game, origin_y=1, origin_x=1)
-        _draw_sidebar(stdscr, game, origin_y=1, origin_x=2 + game.board.width * 2 + 3)
-        stdscr.refresh()
+        frame_start = time.monotonic()
+        elapsed = frame_start - last_frame
+        last_frame = frame_start
 
+        # 1. 入力処理
         key = stdscr.getch()
         if key != -1:
             if not _handle_key(game, key):
                 break
 
-        now = time.monotonic()
-        if now - last_tick >= game.gravity_interval():
+        # 2. 固定タイムステップでの更新(レベルアップ等で変化する重力間隔を反映)
+        timestep.update_interval = game.gravity_interval()
+        for _ in range(timestep.advance(elapsed)):
             game.tick()
-            last_tick = now
 
-        time.sleep(0.02)
+        # 3. 描画
+        stdscr.erase()
+        _draw_board(stdscr, game, origin_y=1, origin_x=1)
+        _draw_sidebar(stdscr, game, origin_y=1, origin_x=2 + game.board.width * 2 + 3)
+        stdscr.refresh()
+
+        # 4. フレームレート制御
+        frame_elapsed = time.monotonic() - frame_start
+        time.sleep(limiter.sleep_duration(frame_elapsed))
 
 
 def main() -> None:

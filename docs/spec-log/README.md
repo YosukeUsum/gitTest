@@ -14,3 +14,4 @@
 |---|---|---|---|---|
 | 2026-08-29 | SPEC.md 変更時の壁打ちログを残す仕組み | NFR-7(新規), 11章, 12章 | 決定済み | [2026-08-29-spec-brainstorm-logging.md](2026-08-29-spec-brainstorm-logging.md) |
 | 2026-08-29 | CLI表示を日本語化する（NFR-5の見直し） | NFR-5(改訂), 12章 | 決定済み | [2026-08-29-cli-japanese-display.md](2026-08-29-cli-japanese-display.md) |
+| 2026-08-29 | ゲームループへの固定タイムステップ方式の導入(ループエンジニアリング) | NFR-8(新規), AC-10・AC-11(新規), 6章, 12章 | 決定済み | [2026-08-29-game-loop-engineering.md](2026-08-29-game-loop-engineering.md) |
