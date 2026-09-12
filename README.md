@@ -28,6 +28,22 @@ pip install -r requirements.txt
 > py -3 -m pip install -r requirements.txt
 > ```
 
+> **Windows で `ModuleNotFoundError: No module named '_curses'` が出る場合**
+> Windows版の標準Pythonには `curses` モジュールが含まれていません(Unix専用)。
+> そのため本プロジェクトは `requirements.txt` に `windows-curses` を条件付き依存
+> として指定していますが、**実行に使うインタプリタと同じものでインストールされて
+> いないと発生します**(例: 別のPythonの `pip install` を先に実行していた等)。
+> `main.py` を実行するのと同じコマンド(例: `py -3`)で明示的にインストールして
+> ください。
+>
+> ```bash
+> py -3 -m pip install -r requirements.txt
+> :: それでも解決しない場合
+> py -3 -m pip install windows-curses
+> :: 正しくインストールされたか確認
+> py -3 -c "import curses; print('OK')"
+> ```
+
 ## 実行方法
 
 ```bash

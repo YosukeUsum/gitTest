@@ -133,3 +133,14 @@
   Windowsで `python` が古いPythonを指す場合は `py -3`(Pythonランチャーで3.8以上を
   明示)を使う旨を追記した。SPEC.mdの要件変更を伴わない案内文の修正のため、
   壁打ちログ(docs/spec-log/)の起票は対象外とした(CLAUDE.mdの「記録しない」対象)。
+
+### ドキュメント修正: windows-cursesが見つからないエラーの案内を追加
+
+- 事象: `py -3 main.py` を実行すると `ModuleNotFoundError: No module named '_curses'`
+  が発生。Windows版の標準Pythonには `curses` モジュールが含まれておらず、
+  `requirements.txt` の `windows-curses`(条件付き依存)が、実行に使うインタプリタ
+  (`py -3` = Python 3.8)とは別のインタプリタにインストールされていたことが原因。
+- 対応: README.mdに、実行コマンドと同じインタプリタで
+  `py -3 -m pip install -r requirements.txt` を実行する旨、および
+  `py -3 -c "import curses; print('OK')"` での確認方法を追記した。
+  SPEC.md変更を伴わないため壁打ちログの起票は対象外(CLAUDE.md運用どおり)。
