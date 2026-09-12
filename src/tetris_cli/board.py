@@ -1,12 +1,18 @@
 """盤面の状態管理・衝突判定・ライン消去 (SPEC.md FR-1, FR-4, FR-6)。"""
 from __future__ import annotations
 
-from typing import List
+import random
+from typing import List, Optional
 
 from .tetromino import Piece
 
 WIDTH = 10
 HEIGHT = 20
+
+# お邪魔行の色ID (SPEC.md FR-21)。標準8色を7ミノの色分け(FR-14)ですでに
+# 使い切っているため(NFR-10)、盤面セルの値としては新しい非0整数を割り当てるに
+# とどめ、実際の表示色・属性の割り当てはui_curses.py側で行う。
+GARBAGE_COLOR = 8
 
 
 class Board:
@@ -71,3 +77,21 @@ class Board:
 
     def is_row_full(self, row_index: int) -> bool:
         return all(cell != 0 for cell in self.grid[row_index])
+
+    def add_garbage_rows(self, count: int, rng: Optional[random.Random] = None) -> None:
+        """お邪魔行を盤面最下部に追加する (SPEC.md FR-20手順3, FR-21)。
+
+        既存のブロックを上に押し上げるため、盤面上部からcount行を切り捨てる
+        (盤面高さは常に一定に保つ)。追加する各行は、ランダムに選んだ1列だけ
+        空け、それ以外のマスを `GARBAGE_COLOR` で埋める(1行ごとに独立して
+        抽選する)。countが0以下の場合は何もしない。
+        """
+        if count <= 0:
+            return
+        rng = rng or random.Random()
+        self.grid = self.grid[count:]
+        for _ in range(count):
+            gap_col = rng.randrange(self.width)
+            row = [GARBAGE_COLOR] * self.width
+            row[gap_col] = 0
+            self.grid.append(row)

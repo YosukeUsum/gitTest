@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from .board import Board
 from .tetromino import ALL_KINDS, WALL_KICK_OFFSETS, Piece
@@ -81,6 +81,14 @@ class Game:
         # clearing_rows が空でない間は消去待ちの行を保持し、盤面からはまだ消去しない。
         self.clearing_rows: List[int] = []
         self.clear_effect_remaining: float = 0.0
+
+        # 2人対戦モード(SPEC.md FR-17〜FR-22)向けの拡張フック。単体では未使用
+        # (None のまま)で、curses・お邪魔行のいずれにも非依存(NFR-3, NFR-14)。
+        # on_locked: ミノがロックするたびに、その消去行数(0〜4)を渡して呼ばれる。
+        self.on_locked: Optional[Callable[[int], None]] = None
+        # on_before_spawn: 次のミノを出現させる直前(消去エフェクト完了後を含む)
+        # に呼ばれる。お邪魔行の盤面への反映(FR-20手順3)はここで行う想定。
+        self.on_before_spawn: Optional[Callable[[], None]] = None
 
     # ------------------------------------------------------------------
     # 出現・重力
@@ -188,17 +196,25 @@ class Game:
         スコア・消去ライン数・レベルは即座に更新するが、盤面からの実際の消去と
         次のミノの出現は `clear_effect_remaining` が経過するまで遅延させる。
         完成行が無ければ、従来通り即座に次のミノを出現させる。
+
+        `on_locked` が設定されていれば、消去行数(0〜4)を渡して必ず呼び出す
+        (2人対戦モードの攻撃力算出・相殺、SPEC.md FR-19, FR-20)。消去行が無い
+        場合は、次のミノ出現の直前に `on_before_spawn` も呼び出す。
         """
         self.board.lock_piece(self.current)
         full_rows = self.board.find_full_rows()
+        cleared = len(full_rows)
         if full_rows:
-            cleared = len(full_rows)
             self.score += _LINE_SCORE_TABLE.get(cleared, 0) * self.level
             self.lines_cleared += cleared
             self.level = 1 + self.lines_cleared // LINES_PER_LEVEL
             self.clearing_rows = full_rows
             self.clear_effect_remaining = LINE_CLEAR_EFFECT_SECONDS
-        else:
+        if self.on_locked:
+            self.on_locked(cleared)
+        if not full_rows:
+            if self.on_before_spawn:
+                self.on_before_spawn()
             self._spawn_next()
 
     def update(self, elapsed_seconds: float) -> None:
@@ -216,6 +232,8 @@ class Game:
             self.board.remove_rows(self.clearing_rows)
             self.clearing_rows = []
             self.clear_effect_remaining = 0.0
+            if self.on_before_spawn:
+                self.on_before_spawn()
             self._spawn_next()
 
     @property

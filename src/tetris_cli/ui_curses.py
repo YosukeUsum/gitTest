@@ -24,9 +24,12 @@ from __future__ import annotations
 
 import curses
 import locale
+import sys
 import time
 import unicodedata
 
+from .battle import BattleGame, PLAYER_1, PLAYER_2
+from .board import GARBAGE_COLOR
 from .game import Game
 from .game_loop import FixedTimestepLoop, FrameLimiter
 from .tetromino import KIND_TO_COLOR
@@ -60,6 +63,27 @@ UI_ACCENT_PAIRS = {
     "title": (9, curses.COLOR_MAGENTA),
     "paused": (10, curses.COLOR_YELLOW),
     "game_over": (11, curses.COLOR_RED),
+}
+
+# お邪魔行(SPEC.md FR-21)用のcursesカラーペアID。標準8色は既に7ミノ+UI_ACCENT_PAIRSで
+# 使い切っているため(NFR-10)、新しい色は割り当てず、Lミノと同じ白背景を流用したうえで
+# curses.A_DIM 属性を重ねて通常ブロックと区別する(2章 相殺・お邪魔行、壁打ちログ参照)。
+GARBAGE_PAIR_ID = 12
+
+# 2人対戦モードの第2プレイヤー用キー操作ヘルプ(SPEC.md 8章, FR-17, NFR-16)。
+BATTLE_KEY_BINDINGS_HELP_P1 = "P1 矢印:移動 上/X:右回転 Z:左回転 Sp:ハードドロップ"
+BATTLE_KEY_BINDINGS_HELP_P2 = "P2 A/D:移動 W:右回転 E:左回転 F:ハードドロップ"
+BATTLE_COMMON_HELP = "P:一時停止(両者) Q:終了"
+
+# 第2プレイヤーのキー割り当て (SPEC.md 8章, NFR-16)。第1プレイヤー・共通操作
+# (P一時停止, Q終了)のいずれとも重複しない。
+P2_KEYMAP = {
+    "left": (ord("a"), ord("A")),
+    "right": (ord("d"), ord("D")),
+    "soft_drop": (ord("s"), ord("S")),
+    "rotate_cw": (ord("w"), ord("W")),
+    "rotate_ccw": (ord("e"), ord("E")),
+    "hard_drop": (ord("f"), ord("F")),
 }
 
 # 画面に表示する操作ヘルプ。全角文字を含むため _draw_text() 経由で描画する (NFR-5)。
@@ -118,6 +142,8 @@ def _init_colors() -> bool:
         # FR-15: 枠線・タイトル・状態メッセージ用のアクセントカラー(文字色のみ、背景は黒)。
         for pair_id, fg in UI_ACCENT_PAIRS.values():
             curses.init_pair(pair_id, fg, curses.COLOR_BLACK)
+        # FR-21: お邪魔行はLミノと同じ白背景を流用する(区別はA_DIM属性で行う)。
+        curses.init_pair(GARBAGE_PAIR_ID, curses.COLOR_BLACK, curses.COLOR_WHITE)
     except curses.error:
         return False
     return True
@@ -161,7 +187,13 @@ def _draw_board(
             color_id = piece_color if (r, c) in piece_cells else board.grid[r][c]
             if color_id:
                 if colors_enabled:
-                    attr = curses.color_pair(color_id)
+                    # FR-21: お邪魔行(GARBAGE_COLOR)は盤面上の色ID(board.grid由来の
+                    # 非curses値)なので、そのままcolor_pair番号として使わず、専用の
+                    # GARBAGE_PAIR_IDへ変換したうえでA_DIMを重ねて区別する。
+                    if color_id == GARBAGE_COLOR:
+                        attr = curses.color_pair(GARBAGE_PAIR_ID) | curses.A_DIM
+                    else:
+                        attr = curses.color_pair(color_id)
                 else:
                     attr = curses.A_NORMAL
                 if row_is_flashing:
@@ -187,33 +219,53 @@ def _accent_attr(colors_enabled: bool, name: str) -> int:
 
 
 def _draw_sidebar(
-    stdscr, game: Game, origin_y: int, origin_x: int, colors_enabled: bool
+    stdscr,
+    game: Game,
+    origin_y: int,
+    origin_x: int,
+    colors_enabled: bool,
+    title: str = "テトリス",
+    help_text: str | None = KEY_BINDINGS_HELP,
+    max_x: int | None = None,
+    pending_garbage: int | None = None,
 ) -> None:
     """サイドバーを描画する (SPEC.md FR-15)。
 
     タイトル・一時停止/ゲームオーバーの状態メッセージにアクセントカラーを付ける。
     色非対応端末では従来通り無配色のまま描画する (NFR-10)。
+
+    2人対戦モード(SPEC.md FR-17)では、title/help_text/max_x を各プレイヤー用に
+    差し替え、pending_garbage(保留お邪魔行数、FR-20)も併せて表示できるようにする。
+    1人用モードの呼び出しはデフォルト引数のみで従来通り動作する。
     """
+    if max_x is None:
+        max_x = curses.COLS - 1
     _draw_text(
-        stdscr, origin_y, origin_x, "テトリス", attr=_accent_attr(colors_enabled, "title")
+        stdscr, origin_y, origin_x, title, max_x=max_x, attr=_accent_attr(colors_enabled, "title")
     )
-    _draw_text(stdscr, origin_y + 2, origin_x, f"スコア: {game.score}")
-    _draw_text(stdscr, origin_y + 3, origin_x, f"レベル: {game.level}")
-    _draw_text(stdscr, origin_y + 4, origin_x, f"ライン: {game.lines_cleared}")
-    _draw_text(stdscr, origin_y + 6, origin_x, f"ネクスト: {game.next_kind}")
+    _draw_text(stdscr, origin_y + 2, origin_x, f"スコア: {game.score}", max_x=max_x)
+    _draw_text(stdscr, origin_y + 3, origin_x, f"レベル: {game.level}", max_x=max_x)
+    _draw_text(stdscr, origin_y + 4, origin_x, f"ライン: {game.lines_cleared}", max_x=max_x)
+    if pending_garbage is not None:
+        _draw_text(
+            stdscr, origin_y + 5, origin_x, f"保留お邪魔行: {pending_garbage}", max_x=max_x
+        )
+    _draw_text(stdscr, origin_y + 6, origin_x, f"ネクスト: {game.next_kind}", max_x=max_x)
     if game.paused:
         _draw_text(
             stdscr,
             origin_y + 8,
             origin_x,
             "-- 一時停止中 --",
+            max_x=max_x,
             attr=_accent_attr(colors_enabled, "paused"),
         )
     if game.game_over:
         go_attr = _accent_attr(colors_enabled, "game_over")
-        _draw_text(stdscr, origin_y + 8, origin_x, "ゲームオーバー", attr=go_attr)
-        _draw_text(stdscr, origin_y + 9, origin_x, "Q キーで終了", attr=go_attr)
-    _draw_text(stdscr, origin_y + 11, origin_x, KEY_BINDINGS_HELP, max_x=curses.COLS - 1)
+        _draw_text(stdscr, origin_y + 8, origin_x, "ゲームオーバー", max_x=max_x, attr=go_attr)
+        _draw_text(stdscr, origin_y + 9, origin_x, "Q キーで終了", max_x=max_x, attr=go_attr)
+    if help_text:
+        _draw_text(stdscr, origin_y + 11, origin_x, help_text, max_x=max_x)
 
 
 def _handle_key(game: Game, key: int) -> bool:
@@ -293,7 +345,151 @@ def run(stdscr) -> None:
         time.sleep(limiter.sleep_duration(frame_elapsed))
 
 
+def _handle_p2_key(game: Game, key: int) -> None:
+    """第2プレイヤー用のキー入力をGameに反映する (SPEC.md 8章, FR-17, NFR-16)。
+
+    一時停止(P)・終了(Q)は対戦全体の共通操作として run_battle() 側で扱うため、
+    ここでは移動・回転・ドロップのみを扱う。
+    """
+    if game.game_over:
+        return
+    for action, keys in P2_KEYMAP.items():
+        if key not in keys:
+            continue
+        if action == "left":
+            game.move_left()
+        elif action == "right":
+            game.move_right()
+        elif action == "soft_drop":
+            game.soft_drop()
+        elif action == "rotate_cw":
+            game.rotate_cw()
+        elif action == "rotate_ccw":
+            game.rotate_ccw()
+        elif action == "hard_drop":
+            game.hard_drop()
+        return
+
+
+def run_battle(stdscr) -> None:
+    """2人対戦モードのメインループ (SPEC.md FR-17〜FR-22)。
+
+    盤面を左右に画面分割して同時に描画し、共有キーボードで2人を操作する
+    (第1プレイヤー: 矢印キー等、第2プレイヤー: A/D/S/W/E/F、8章)。一時停止(P)・
+    終了(Q)は対戦全体に対する共通操作として扱う。ゲーム進行の更新方式は run()
+    と同様、固定タイムステップ+フレームレート制御(NFR-8)を各プレイヤーの
+    Gameに対して独立に適用する。お邪魔行の攻撃力算出・相殺・盤面反映・勝敗判定
+    (FR-19〜FR-22)は BattleGame(battle.py, NFR-14)に委譲し、本関数は描画と
+    入力の振り分けのみを行う(NFR-15)。
+
+    盤面2枚を横に並べるため、画面幅の広い端末(目安: 100桁以上)での実行を
+    想定する。
+    """
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+    stdscr.keypad(True)
+    colors_enabled = _init_colors()
+
+    battle = BattleGame()
+    game1 = battle.player1
+    game2 = battle.player2
+    timestep1 = FixedTimestepLoop(update_interval=game1.gravity_interval())
+    timestep2 = FixedTimestepLoop(update_interval=game2.gravity_interval())
+    limiter = FrameLimiter(target_fps=TARGET_FPS)
+    last_frame = time.monotonic()
+
+    board_total_width = game1.board.width * 2 + 2  # 枠(左右2)を含む盤面の桁数
+    gap = 3
+    sidebar_width = 20
+    p1_board_x = 1
+    p1_sidebar_x = p1_board_x + board_total_width + gap
+    p2_board_x = p1_sidebar_x + sidebar_width + gap
+    p2_sidebar_x = p2_board_x + board_total_width + gap
+
+    while True:
+        frame_start = time.monotonic()
+        elapsed = frame_start - last_frame
+        last_frame = frame_start
+
+        # 1. 入力処理(共有キーボード。P/Qは対戦全体への共通操作)
+        key = stdscr.getch()
+        if key != -1:
+            if key in (ord("q"), ord("Q")):
+                break
+            if key in (ord("p"), ord("P")):
+                if not battle.is_over:
+                    paused = not game1.paused
+                    game1.paused = paused
+                    game2.paused = paused
+            elif not battle.is_over:
+                _handle_key(game1, key)
+                _handle_p2_key(game2, key)
+
+        # 2. 固定タイムステップでの更新(重力間隔はプレイヤーごとに独立)
+        if not battle.is_over:
+            battle.update(elapsed)
+            timestep1.update_interval = game1.gravity_interval()
+            timestep2.update_interval = game2.gravity_interval()
+            for _ in range(timestep1.advance(elapsed)):
+                game1.tick()
+            for _ in range(timestep2.advance(elapsed)):
+                game2.tick()
+
+        # 3. 描画
+        stdscr.erase()
+        _draw_text(stdscr, 0, p1_board_x, BATTLE_COMMON_HELP, max_x=curses.COLS - 1)
+        _draw_board(
+            stdscr, game1, origin_y=1, origin_x=p1_board_x, colors_enabled=colors_enabled
+        )
+        _draw_sidebar(
+            stdscr,
+            game1,
+            origin_y=1,
+            origin_x=p1_sidebar_x,
+            colors_enabled=colors_enabled,
+            title="プレイヤー1",
+            help_text=BATTLE_KEY_BINDINGS_HELP_P1,
+            max_x=min(p2_board_x - 1, curses.COLS - 1),
+            pending_garbage=battle.pending_garbage[PLAYER_1],
+        )
+        _draw_board(
+            stdscr, game2, origin_y=1, origin_x=p2_board_x, colors_enabled=colors_enabled
+        )
+        _draw_sidebar(
+            stdscr,
+            game2,
+            origin_y=1,
+            origin_x=p2_sidebar_x,
+            colors_enabled=colors_enabled,
+            title="プレイヤー2",
+            help_text=BATTLE_KEY_BINDINGS_HELP_P2,
+            max_x=curses.COLS - 1,
+            pending_garbage=battle.pending_garbage[PLAYER_2],
+        )
+        if battle.is_over:
+            winner = battle.winner
+            if winner == 0:
+                message = "引き分け! Qキーで終了"
+            else:
+                message = f"プレイヤー{winner}の勝ち! Qキーで終了"
+            _draw_text(
+                stdscr,
+                game1.board.height + 2,
+                p1_board_x,
+                message,
+                max_x=curses.COLS - 1,
+                attr=_accent_attr(colors_enabled, "game_over"),
+            )
+        stdscr.refresh()
+
+        # 4. フレームレート制御
+        frame_elapsed = time.monotonic() - frame_start
+        time.sleep(limiter.sleep_duration(frame_elapsed))
+
+
 def main() -> None:
     # 全角文字を正しく扱うためロケールを環境に合わせる (SPEC.md NFR-5)。
     locale.setlocale(locale.LC_ALL, "")
-    curses.wrapper(run)
+    # SPEC.md FR-17: "--2p" 指定時は2人対戦モード、未指定時は従来通り1人用モード。
+    two_player = "--2p" in sys.argv[1:]
+    curses.wrapper(run_battle if two_player else run)
