@@ -21,3 +21,4 @@
 | 2026-09-12 | SPEC.md変更時にdocs/design/の説明資料も同期更新する | NFR-12(新規), 6章, 11章, 12章 | 決定済み | [2026-09-12-design-doc-sync.md](2026-09-12-design-doc-sync.md) |
 | 2026-09-12 | 評価者レビューを通常テスト実行後・別セッションで行う | NFR-13(新規), 11章, 12章 | 決定済み | [2026-09-12-reviewer-separate-session.md](2026-09-12-reviewer-separate-session.md) |
 | 2026-09-12 | 2人対戦モード(お邪魔行攻撃)の追加 | FR-17〜22(新規), NFR-14〜16(新規), AC-14〜19(新規), 2章, 3章, 6章, 7章, 8章, 12章 | 決定済み | [2026-09-12-two-player-battle-mode.md](2026-09-12-two-player-battle-mode.md) |
+| 2026-09-12 | 評価者の再レビューを実施する条件と上限回数 | NFR-13(改訂), 12章 | 決定済み | [2026-09-12-reviewer-reloop-trigger-conditions.md](2026-09-12-reviewer-reloop-trigger-conditions.md) |
