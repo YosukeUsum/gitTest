@@ -65,3 +65,32 @@ def test_lock_piece_writes_color_into_grid():
     board.lock_piece(piece)
     for r, c in piece.cells():
         assert board.grid[r][c] == piece.color()
+
+
+
+def test_find_full_rows_does_not_modify_grid():
+    """SPEC.md FR-16: find_full_rows() は判定のみ行い、盤面を変更しない。"""
+    board = Board()
+    board.grid[19] = [1] * board.width
+    full_rows = board.find_full_rows()
+    assert full_rows == [19]
+    assert board.grid[19] == [1] * board.width
+
+
+def test_find_full_rows_returns_multiple_indices_in_order():
+    board = Board()
+    board.grid[17] = [1] * board.width
+    board.grid[19] = [1] * board.width
+    assert board.find_full_rows() == [17, 19]
+
+
+def test_remove_rows_clears_specified_rows_and_prepends_empty_rows():
+    """SPEC.md FR-16: remove_rows() は指定した行だけを消去し、上に空行を詰める。"""
+    board = Board()
+    board.grid[18] = [1] * board.width
+    board.grid[19] = [2] * board.width
+    board.remove_rows([18, 19])
+    assert board.grid[-1] == [0] * board.width
+    assert board.grid[-2] == [0] * board.width
+    assert all(cell == 0 for cell in board.grid[0])
+    assert len(board.grid) == board.height

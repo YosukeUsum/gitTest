@@ -22,6 +22,11 @@ SPAWN_ROW = -1  # 上部からわずかに見えない状態で出現させる�
 # 全ミノ形状は4x4グリッドのローカル行1に必ずブロックを持つため、
 # SPAWN_ROW=-1 のとき盤面row=0が出現位置の衝突判定対象になる (FR-11, AC-6)。
 
+# ライン消去エフェクト (SPEC.md FR-16, NFR-11)。
+# 行が完成してから実際に盤面から消去するまでの表示時間と、点滅の間隔(いずれも秒)。
+LINE_CLEAR_EFFECT_SECONDS = 0.3
+LINE_CLEAR_BLINK_INTERVAL = 0.075
+
 
 class SevenBag:
     """7-bagランダマイザ (SPEC.md FR-2, AC-9)。
@@ -72,6 +77,11 @@ class Game:
         if not self.board.can_place(self.current):
             self.game_over = True
 
+        # ライン消去エフェクト用の状態 (SPEC.md FR-16)。
+        # clearing_rows が空でない間は消去待ちの行を保持し、盤面からはまだ消去しない。
+        self.clearing_rows: List[int] = []
+        self.clear_effect_remaining: float = 0.0
+
     # ------------------------------------------------------------------
     # 出現・重力
     # ------------------------------------------------------------------
@@ -99,8 +109,15 @@ class Game:
     def move_right(self) -> bool:
         return self._try_move(0, 1)
 
+    def _is_busy(self) -> bool:
+        """プレイヤー操作を受け付けない状態か
+
+        (ゲームオーバー・一時停止・ライン消去エフェクト表示中 (SPEC.md FR-16))。
+        """
+        return self.game_over or self.paused or bool(self.clearing_rows)
+
     def _try_move(self, row_offset: int, col_offset: int) -> bool:
-        if self.game_over or self.paused:
+        if self._is_busy():
             return False
         if self.board.can_place(self.current, row_offset=row_offset, col_offset=col_offset):
             self.current.row += row_offset
@@ -113,7 +130,7 @@ class Game:
 
         移動できない(着地)場合はロック処理を行う。
         """
-        if self.game_over or self.paused:
+        if self._is_busy():
             return False
         if self.board.can_place(self.current, row_offset=1):
             self.current.row += 1
@@ -124,7 +141,7 @@ class Game:
 
     def hard_drop(self) -> int:
         """即座に着地位置まで落下させ、距離に応じたボーナスを加算する (FR-8, AC-7)。"""
-        if self.game_over or self.paused:
+        if self._is_busy():
             return 0
         distance = 0
         while self.board.can_place(self.current, row_offset=1):
@@ -142,7 +159,7 @@ class Game:
 
     def _try_rotate(self, direction: int) -> bool:
         """回転を試み、必要なら簡易ウォールキックを行う (FR-5, AC-8)。"""
-        if self.game_over or self.paused:
+        if self._is_busy():
             return False
         new_rotation = (self.current.rotation + direction) % 4
         for row_kick, col_kick in WALL_KICK_OFFSETS:
@@ -166,17 +183,57 @@ class Game:
     # 内部: ロック・ライン消去・スコア・レベル
     # ------------------------------------------------------------------
     def _lock_and_advance(self) -> None:
+        """ミノを固定し、行が完成していればライン消去エフェクトを開始する (FR-16)。
+
+        スコア・消去ライン数・レベルは即座に更新するが、盤面からの実際の消去と
+        次のミノの出現は `clear_effect_remaining` が経過するまで遅延させる。
+        完成行が無ければ、従来通り即座に次のミノを出現させる。
+        """
         self.board.lock_piece(self.current)
-        cleared = self.board.clear_lines()
-        if cleared:
+        full_rows = self.board.find_full_rows()
+        if full_rows:
+            cleared = len(full_rows)
             self.score += _LINE_SCORE_TABLE.get(cleared, 0) * self.level
             self.lines_cleared += cleared
             self.level = 1 + self.lines_cleared // LINES_PER_LEVEL
-        self._spawn_next()
+            self.clearing_rows = full_rows
+            self.clear_effect_remaining = LINE_CLEAR_EFFECT_SECONDS
+        else:
+            self._spawn_next()
+
+    def update(self, elapsed_seconds: float) -> None:
+        """ライン消去エフェクトの経過時間を進める (SPEC.md FR-16, NFR-11)。
+
+        重力による `tick()` の固定タイムステップとは独立に、UI側から毎フレーム
+        呼び出すことを想定する。エフェクト中でない場合、ゲームオーバー・一時停止中は
+        何もしない。残り時間が0以下になったら、実際に対象行を盤面から消去し、
+        次のミノを出現させる。
+        """
+        if self.game_over or self.paused or not self.clearing_rows:
+            return
+        self.clear_effect_remaining -= max(elapsed_seconds, 0.0)
+        if self.clear_effect_remaining <= 0:
+            self.board.remove_rows(self.clearing_rows)
+            self.clearing_rows = []
+            self.clear_effect_remaining = 0.0
+            self._spawn_next()
+
+    @property
+    def clear_effect_blink_on(self) -> bool:
+        """ライン消去エフェクトが「点滅の表示フェーズ」かどうかを返す (SPEC.md FR-16)。
+
+        エフェクト中でなければ常に False。cursesに非依存で、pytestで単体テスト
+        可能にすることで、点滅のタイミング制御ロジックを検証できるようにする(NFR-11)。
+        """
+        if not self.clearing_rows:
+            return False
+        elapsed = LINE_CLEAR_EFFECT_SECONDS - self.clear_effect_remaining
+        phase = int(elapsed / LINE_CLEAR_BLINK_INTERVAL)
+        return phase % 2 == 0
 
     def tick(self) -> None:
         """重力による自然落下を1ステップ進める。着地していればロックする。"""
-        if self.game_over or self.paused:
+        if self._is_busy():
             return
         if self.board.can_place(self.current, row_offset=1):
             self.current.row += 1

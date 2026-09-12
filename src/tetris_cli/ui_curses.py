@@ -14,6 +14,11 @@ windows-curses は全角文字を含む文字列を addstr に渡すとカーソ
 アクセントカラーを付ける(_init_colors() の UI_ACCENT_PAIRS を参照)。色非対応端末
 (`curses.has_colors()` が `False`)では、ブロックは従来通り `[]` の輪郭表示、
 枠線・見出し・状態メッセージは無配色のままフォールバックする。
+
+注意 (SPEC.md FR-16, NFR-11): ライン消去エフェクトの点滅は `curses.A_REVERSE`
+(反転表示)で表現する。これは色を使わない標準属性のため、色対応・非対応端末の
+どちらでも同じロジックで動作する。点滅のタイミング(表示フェーズかどうか)は
+`Game.clear_effect_blink_on` が計算し、本モジュールはそれを見て描画するだけにする。
 """
 from __future__ import annotations
 
@@ -121,19 +126,26 @@ def _init_colors() -> bool:
 def _draw_board(
     stdscr, game: Game, origin_y: int, origin_x: int, colors_enabled: bool
 ) -> None:
-    """盤面を描画する (SPEC.md FR-14, FR-15)。
+    """盤面を描画する (SPEC.md FR-14, FR-15, FR-16)。
 
     色対応端末では、ブロックは輪郭(`[]`)ではなく背景色で塗りつぶした「ソリッド表示」で
     描画し、枠線にはアクセントカラーを付ける。色非対応端末では、ブロックは従来通り `[]`
-    の輪郭表示、枠線は無配色のままとする (NFR-10)。
+    の輪郭表示、枠線は無配色のままとする (NFR-10)。ライン消去エフェクト表示中
+    (`game.clearing_rows`)は、点滅の表示フェーズ(`game.clear_effect_blink_on`)である
+    間、対象行を `curses.A_REVERSE` で反転表示する (NFR-11)。
     """
     board = game.board
-    if game.game_over:
+    if game.game_over or game.clearing_rows:
+        # ゲームオーバー時、およびライン消去エフェクト表示中(FR-16)は、既に
+        # board.grid に固定済みの内容をそのまま描画すればよいため current は重ねない。
         piece_cells: set[tuple[int, int]] = set()
         piece_color = 0
     else:
         piece_cells = set(game.current.cells())
         piece_color = game.current.color()
+
+    clearing_rows = set(game.clearing_rows)
+    blink_on = game.clear_effect_blink_on
 
     if colors_enabled:
         border_pair_id, _ = UI_ACCENT_PAIRS["border"]
@@ -144,13 +156,19 @@ def _draw_board(
     for r in range(board.height):
         stdscr.addstr(origin_y + r, origin_x, "|", border_attr)
         cur_x = origin_x + 1
+        row_is_flashing = r in clearing_rows and blink_on
         for c in range(board.width):
             color_id = piece_color if (r, c) in piece_cells else board.grid[r][c]
             if color_id:
                 if colors_enabled:
-                    stdscr.addstr(origin_y + r, cur_x, EMPTY, curses.color_pair(color_id))
+                    attr = curses.color_pair(color_id)
                 else:
-                    stdscr.addstr(origin_y + r, cur_x, CELL, curses.A_NORMAL)
+                    attr = curses.A_NORMAL
+                if row_is_flashing:
+                    # FR-16: 消去対象行の点滅表示フェーズでは反転表示にする。
+                    attr |= curses.A_REVERSE
+                text = EMPTY if colors_enabled else CELL
+                stdscr.addstr(origin_y + r, cur_x, text, attr)
             else:
                 stdscr.addstr(origin_y + r, cur_x, EMPTY)
             cur_x += 2
@@ -251,6 +269,9 @@ def run(stdscr) -> None:
                 break
 
         # 2. 固定タイムステップでの更新(レベルアップ等で変化する重力間隔を反映)
+        # ライン消去エフェクト(FR-16)の経過時間は、重力の固定タイムステップとは独立に
+        # 実時間(elapsed)でそのまま進める(点滅を滑らかにするため)。
+        game.update(elapsed)
         timestep.update_interval = game.gravity_interval()
         for _ in range(timestep.advance(elapsed)):
             game.tick()

@@ -48,13 +48,26 @@ class Board:
             if 0 <= r < self.height and 0 <= c < self.width:
                 self.grid[r][c] = color
 
+    def find_full_rows(self) -> List[int]:
+        """完全に埋まった行のインデックス一覧を返す(消去はしない) (SPEC.md FR-16)。
+
+        ライン消去エフェクト(FR-16)のため、実際の消去を遅延できるように
+        「判定」と「消去」を分離している。
+        """
+        return [r for r in range(self.height) if self.is_row_full(r)]
+
+    def remove_rows(self, rows: List[int]) -> None:
+        """指定した行を消去し、上に空行を詰める (SPEC.md FR-6, FR-16)。"""
+        rows_set = set(rows)
+        remaining = [row for i, row in enumerate(self.grid) if i not in rows_set]
+        new_rows = [[0] * self.width for _ in range(len(rows_set))]
+        self.grid = new_rows + remaining
+
     def clear_lines(self) -> int:
         """完全に埋まった行を消去し、詰める。消去した行数を返す (FR-6)。"""
-        remaining = [row for row in self.grid if any(cell == 0 for cell in row)]
-        cleared = self.height - len(remaining)
-        new_rows = [[0] * self.width for _ in range(cleared)]
-        self.grid = new_rows + remaining
-        return cleared
+        rows = self.find_full_rows()
+        self.remove_rows(rows)
+        return len(rows)
 
     def is_row_full(self, row_index: int) -> bool:
         return all(cell != 0 for cell in self.grid[row_index])
