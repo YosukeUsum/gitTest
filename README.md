@@ -17,11 +17,25 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+> **Windows で `SyntaxError: future feature annotations is not defined` が出る場合**
+> `python` コマンドが古いPython(3.6以前)を指していることが原因です。本プロジェクトは
+> `from __future__ import annotations`(Python 3.9対応/NFR-4)を使用しています。
+> `python` の代わりに Python ランチャーで **3.8以上** を明示的に指定してください。
+>
+> ```bash
+> py -3 -m venv .venv
+> .venv\Scripts\activate
+> py -3 -m pip install -r requirements.txt
+> ```
+
 ## 実行方法
 
 ```bash
 python main.py
 ```
+
+Windowsで上記の `SyntaxError` が出る場合は、`py -3 main.py` のように
+Pythonランチャーで3.8以上を明示して実行してください。
 
 ## 操作方法
 
@@ -41,6 +55,9 @@ python main.py
 pytest
 ```
 
+Windowsで `python`/`pytest` が古いPythonを指す場合は `py -3 -m pytest` を使ってください
+(詳細は [CLAUDE.md](./CLAUDE.md))。
+
 テストを実行するたびに、成功・失敗にかかわらず `logs/test_run_<実行日時>.log`
 というログファイルが1件作成されます(実行のたびに新規ファイルとして残るため、
 過去の実行結果は上書きされません)。各テストの成否と最終サマリが記録されます。
@@ -52,6 +69,7 @@ src/tetris_cli/
 ├── tetromino.py   # テトリミノの形状・回転定義
 ├── board.py       # 盤面・衝突判定・ライン消去
 ├── game.py        # ゲームロジック(UI非依存)
+├── game_loop.py   # 固定タイムステップ制御・フレームレート制御(UI非依存)
 └── ui_curses.py   # curses描画・入力
 main.py             # エントリーポイント
 tests/               # pytestによる単体テスト

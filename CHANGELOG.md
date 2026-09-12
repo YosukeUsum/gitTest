@@ -120,3 +120,16 @@
   5. `docs/spec-log/README.md` の索引を更新。
   6. `CLAUDE.md` のNFR-5に関する記載が、既にコミット済みの日本語表示化(414e183)より
      古い内容(ASCII限定)のままになっていたため、実装に合わせて修正した。
+
+### ドキュメント修正: Windowsでの実行時SyntaxErrorに関する案内を追加
+
+- 事象: `python main.py` を実行すると `SyntaxError: future feature annotations is not defined`
+  が発生。原因はWindowsの `python` コマンドが古いPython(3.6以前)を指していたため
+  (`from __future__ import annotations` はPython 3.7以降が必要。本プロジェクトは
+  NFR-4によりPython 3.9以上を前提としている)。同様の注意は既に `CLAUDE.md` の
+  テスト実行の項に記載済みだったが、README.mdのセットアップ・実行・テストの各節には
+  未反映だった。
+- 対応: `README.md` の「セットアップ」「実行方法」「テスト」の各節に、
+  Windowsで `python` が古いPythonを指す場合は `py -3`(Pythonランチャーで3.8以上を
+  明示)を使う旨を追記した。SPEC.mdの要件変更を伴わない案内文の修正のため、
+  壁打ちログ(docs/spec-log/)の起票は対象外とした(CLAUDE.mdの「記録しない」対象)。
