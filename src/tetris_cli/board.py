@@ -84,10 +84,13 @@ class Board:
         既存のブロックを上に押し上げるため、盤面上部からcount行を切り捨てる
         (盤面高さは常に一定に保つ)。追加する各行は、ランダムに選んだ1列だけ
         空け、それ以外のマスを `GARBAGE_COLOR` で埋める(1行ごとに独立して
-        抽選する)。countが0以下の場合は何もしない。
+        抽選する)。countが0以下の場合は何もしない。countが盤面の高さ以上の
+        場合は高さで切り詰める(盤面全体をお邪魔行で埋め、高さ不変条件
+        `len(grid) == height` を常に保つ)。
         """
         if count <= 0:
             return
+        count = min(count, self.height)
         rng = rng or random.Random()
         self.grid = self.grid[count:]
         for _ in range(count):
