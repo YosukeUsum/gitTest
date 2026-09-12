@@ -19,3 +19,4 @@
 | 2026-09-12 | 配色・見た目のモダン化(ぷよぷよ的な今風の表現) | FR-15(新規), NFR-10(新規), AC-12(新規), 12章 | 決定済み | [2026-09-12-modern-color-scheme.md](2026-09-12-modern-color-scheme.md) |
 | 2026-09-12 | ライン消去時のエフェクト追加 | FR-16(新規), NFR-11(新規), AC-13(新規), 12章 | 決定済み | [2026-09-12-line-clear-effect.md](2026-09-12-line-clear-effect.md) |
 | 2026-09-12 | SPEC.md変更時にdocs/design/の説明資料も同期更新する | NFR-12(新規), 6章, 11章, 12章 | 決定済み | [2026-09-12-design-doc-sync.md](2026-09-12-design-doc-sync.md) |
+| 2026-09-12 | 評価者レビューを通常テスト実行後・別セッションで行う | NFR-13(新規), 11章, 12章 | 決定済み | [2026-09-12-reviewer-separate-session.md](2026-09-12-reviewer-separate-session.md) |
